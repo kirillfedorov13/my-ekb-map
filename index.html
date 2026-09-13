@@ -17,7 +17,7 @@
 
     #map { width: 100%; height: 100%; z-index: 1; }
 
-    /* Жесткое скрытие ЛЮБЫХ водяных знаков и копирайтов внизу карты */
+    /* Жесткое скрытие водяных знаков и атрибуций */
     .leaflet-control-container .leaflet-bottom.leaflet-right,
     .leaflet-control-attribution {
       display: none !important;
@@ -39,7 +39,6 @@
       box-shadow: 0 3px 6px rgba(0,0,0,0.4);
       position: relative;
     }
-    /* Хвостик (треугольник) внизу метки */
     .custom-marker::after {
       content: "";
       position: absolute;
@@ -54,7 +53,7 @@
       border-right-color: transparent;
     }
 
-    /* Интерфейс управления */
+    /* Кнопки управления */
     .controls {
       position: absolute;
       top: 12px;
@@ -76,10 +75,16 @@
       box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
       cursor: pointer;
       transition: background 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
     }
     .btn:active { background: #f1f5f9; }
+    .btn-sync { background: #8b5cf6; color: white; border: none; }
+    .btn-sync:active { background: #7c3aed; }
 
-    /* Модальное окно */
+    /* Модальные окна */
     .modal {
       display: none;
       position: absolute;
@@ -90,7 +95,6 @@
       justify-content: center;
       padding: 16px;
     }
-
     .modal-content {
       background: #ffffff;
       border-radius: 12px;
@@ -113,7 +117,7 @@
     .btn-edit { background: #0284c7; color: #fff; border: none; }
     .btn-danger { background: #ef4444; color: #fff; border: none; }
 
-    /* Оформление карточки внутри балуна */
+    /* Балун */
     .popup-card { font-size: 13px; line-height: 1.4; min-width: 180px; }
     .popup-card h4 { font-size: 15px; margin-bottom: 4px; color: #0f172a; }
     .popup-rating { color: #f59e0b; font-weight: bold; margin-bottom: 6px; }
@@ -126,11 +130,13 @@
   <div id="map"></div>
 
   <div class="controls">
-    <button class="btn" onclick="exportData()"> Экспорт (JSON)</button>
-    <button class="btn" onclick="document.getElementById('importFile').click()"> Импорт</button>
+    <button class="btn btn-sync" onclick="openSyncModal()">☁️ Синхронизация</button>
+    <button class="btn" onclick="exportData()">💾 Файл (JSON)</button>
+    <button class="btn" onclick="document.getElementById('importFile').click()">📂 Загрузить файл</button>
     <input type="file" id="importFile" style="display:none" onchange="importData(event)" accept=".json">
   </div>
 
+  <!-- Модальное окно: Добавление/Редактирование -->
   <div class="modal" id="pointModal">
     <div class="modal-content">
       <h3 id="modalTitle">Новое место</h3>
@@ -147,6 +153,10 @@
           <option value="Улица/Район">🛣️ Улица / Маршрут</option>
           <option value="Другое">📌 Другое</option>
         </select>
+      </div>
+      <div class="form-group">
+        <label>Дата посещения</label>
+        <input type="date" id="placeDate">
       </div>
       <div class="form-group">
         <label>Оценка</label>
@@ -169,14 +179,35 @@
     </div>
   </div>
 
+  <!-- Модальное окно: Синхронизация -->
+  <div class="modal" id="syncModal">
+    <div class="modal-content">
+      <h3>Облачная синхронизация</h3>
+      <p style="font-size: 13px; color: #475569; margin-bottom: 12px;">
+        Создайте ID на одном устройстве (Выгрузить) и введите его на другом (Скачать), чтобы передать отметки.
+      </p>
+      <div class="form-group">
+        <label>Ваш Sync ID:</label>
+        <input type="text" id="syncIdInput" placeholder="Оставьте пустым для создания нового">
+      </div>
+      <div class="modal-actions" style="justify-content: space-between;">
+        <button class="btn" onclick="closeSyncModal()">Закрыть</button>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-edit" onclick="downloadFromCloud()" id="btnDownload">Скачать</button>
+          <button class="btn btn-primary" onclick="uploadToCloud()" id="btnUpload">Выгрузить</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <script>
-    const map = L.map('map', {
-      attributionControl: false // Отключает стандартный копирайт Leaflet
-    }).setView([56.8389, 60.6057], 13);
-
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    // --- 1. ИНИЦИАЛИЗАЦИЯ КАРТЫ БЕЗ СЛОВ ---
+    const map = L.map('map', { attributionControl: false }).setView([56.8389, 60.6057], 13);
+    
+    // Красочная схема CartoDB Voyager Без Слов (nolabels)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png', {
       maxZoom: 19
     }).addTo(map);
 
@@ -185,82 +216,79 @@
     let pendingCoords = null;
     let editingId = null;
 
-    // --- ФУНКЦИЯ ДИЗАЙНА ИКОНКИ ---
+    // Функция иконок
     function getCustomIcon(category) {
-      let color = '#475569'; // Серый (по умолчанию)
-      let emoji = '📌';
-
-      if (category === 'Заведение') { color = '#ea580c'; emoji = '☕'; }         // Оранжевый
-      if (category === 'Достопримечательность') { color = '#7c3aed'; emoji = '🏛️'; } // Фиолетовый
-      if (category === 'Парк/Природа') { color = '#10b981'; emoji = '🌲'; }       // Зеленый
-      if (category === 'Улица/Район') { color = '#2563eb'; emoji = '🛣️'; }         // Синий
+      let color = '#475569'; let emoji = '📌';
+      if (category === 'Заведение') { color = '#ea580c'; emoji = '☕'; }
+      if (category === 'Достопримечательность') { color = '#7c3aed'; emoji = '🏛️'; }
+      if (category === 'Парк/Природа') { color = '#10b981'; emoji = '🌲'; }
+      if (category === 'Улица/Район') { color = '#2563eb'; emoji = '🛣️'; }
 
       const html = `<div class="custom-marker" style="color: ${color};">${emoji}</div>`;
-
       return L.divIcon({
-        html: html,
-        className: '', // Отключаем стандартные стили Leaflet для фона
-        iconSize: [36, 46], // Ширина, Высота (36px круг + 10px хвостик)
-        iconAnchor: [18, 46], // Точка привязки: центр по X, низ по Y
-        popupAnchor: [0, -42] // Балун открывается над меткой
+        html: html, className: '', iconSize: [36, 46], iconAnchor: [18, 46], popupAnchor: [0, -42]
       });
     }
 
     places.forEach(renderMarker);
 
+    // --- 2. ДОБАВЛЕНИЕ И РЕДАКТИРОВАНИЕ С ДАТОЙ ---
     map.on('click', (e) => {
       editingId = null;
       pendingCoords = { lat: e.latlng.lat, lng: e.latlng.lng };
-      openModal('Новое место', '', 'Заведение', '5', '');
+      const today = new Date().toISOString().split('T')[0]; // Формат YYYY-MM-DD
+      openModal('Новое место', '', 'Заведение', today, '5', '');
     });
 
-    function openModal(titleText, title, cat, rating, comment) {
+    function openModal(titleText, title, cat, dateStr, rating, comment) {
       document.getElementById('modalTitle').innerText = titleText;
       document.getElementById('placeTitle').value = title;
       document.getElementById('placeCategory').value = cat;
+      document.getElementById('placeDate').value = dateStr;
       document.getElementById('placeRating').value = rating;
       document.getElementById('placeComment').value = comment;
       document.getElementById('pointModal').style.display = 'flex';
     }
 
-    function closeModal() {
-      document.getElementById('pointModal').style.display = 'none';
-      pendingCoords = null;
-      editingId = null;
-    }
+    function closeModal() { document.getElementById('pointModal').style.display = 'none'; }
 
     function saveCurrentPoint() {
       const title = document.getElementById('placeTitle').value.trim();
       if (!title) { alert('Пожалуйста, введите название!'); return; }
 
       const category = document.getElementById('placeCategory').value;
+      const dateVal = document.getElementById('placeDate').value;
       const rating = document.getElementById('placeRating').value;
       const comment = document.getElementById('placeComment').value.trim();
 
       if (editingId) {
         const place = places.find(p => p.id === editingId);
         if (place) {
-          place.title = title; place.category = category;
+          place.title = title; place.category = category; place.date = dateVal;
           place.rating = rating; place.comment = comment;
-
           if (markersMap[editingId]) {
             markersMap[editingId].setPopupContent(buildPopupHtml(place));
-            markersMap[editingId].setIcon(getCustomIcon(place.category)); // Меняем иконку при редактировании
+            markersMap[editingId].setIcon(getCustomIcon(place.category));
           }
         }
       } else {
         const newPlace = {
           id: Date.now().toString(),
-          title: title, category: category, rating: rating, comment: comment,
-          lat: pendingCoords.lat, lng: pendingCoords.lng,
-          date: new Date().toLocaleDateString('ru-RU')
+          title: title, category: category, date: dateVal, rating: rating, comment: comment,
+          lat: pendingCoords.lat, lng: pendingCoords.lng
         };
         places.push(newPlace);
         renderMarker(newPlace);
       }
-
       saveToStorage();
       closeModal();
+    }
+
+    // Перевод даты из YYYY-MM-DD в ДД.ММ.ГГГГ для красоты
+    function formatDate(dateStr) {
+      if (!dateStr) return 'Не указана';
+      const parts = dateStr.split('-');
+      return parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : dateStr;
     }
 
     function buildPopupHtml(place) {
@@ -269,9 +297,9 @@
           <h4>${escapeHtml(place.title)}</h4>
           <div class="popup-rating">${'★'.repeat(place.rating)}${'☆'.repeat(5 - place.rating)} (${place.category})</div>
           <div class="popup-comment">${escapeHtml(place.comment || 'Без описания')}</div>
-          <small style="color:#64748b;">Добавлено: ${place.date}</small>
+          <small style="color:#64748b;">Дата: ${formatDate(place.date)}</small>
           <div class="popup-actions">
-            <button class="btn btn-edit" style="padding:4px 8px; font-size:11px;" onclick="startEditPlace('${place.id}')">Редактировать</button>
+            <button class="btn btn-edit" style="padding:4px 8px; font-size:11px;" onclick="startEditPlace('${place.id}')">Изменить</button>
             <button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="deletePlace('${place.id}')">Удалить</button>
           </div>
         </div>
@@ -279,9 +307,7 @@
     }
 
     function renderMarker(place) {
-      const marker = L.marker([place.lat, place.lng], {
-        icon: getCustomIcon(place.category) // Устанавливаем нашу кастомную иконку
-      }).addTo(map);
+      const marker = L.marker([place.lat, place.lng], { icon: getCustomIcon(place.category) }).addTo(map);
       marker.bindPopup(buildPopupHtml(place));
       markersMap[place.id] = marker;
     }
@@ -291,7 +317,7 @@
       if (!place) return;
       if (markersMap[id]) markersMap[id].closePopup();
       editingId = id;
-      openModal('Редактировать место', place.title, place.category, place.rating, place.comment);
+      openModal('Редактировать место', place.title, place.category, place.date, place.rating, place.comment);
     };
 
     window.deletePlace = function(id) {
@@ -304,6 +330,69 @@
     function saveToStorage() { localStorage.setItem('ekb_places', JSON.stringify(places)); }
     function escapeHtml(text) { return text.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m])); }
 
+    // --- 3. ОБЛАЧНАЯ СИНХРОНИЗАЦИЯ ПО ID ---
+    function openSyncModal() {
+      document.getElementById('syncIdInput').value = localStorage.getItem('ekb_sync_id') || '';
+      document.getElementById('syncModal').style.display = 'flex';
+    }
+    function closeSyncModal() { document.getElementById('syncModal').style.display = 'none'; }
+
+    // Выгрузка в бесплатный JSON-бинарник npoint.io
+    async function uploadToCloud() {
+      let id = document.getElementById('syncIdInput').value.trim();
+      const btn = document.getElementById('btnUpload');
+      btn.innerText = 'Загрузка...';
+
+      try {
+        if (!id) {
+          // Создаем новую ячейку
+          const res = await fetch('https://api.npoint.io/', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(places)
+          });
+          const data = await res.json();
+          id = data.id;
+          document.getElementById('syncIdInput').value = id;
+          localStorage.setItem('ekb_sync_id', id);
+          alert('Создан ваш секретный Sync ID: ' + id + '\n\nВведите его на телефоне и нажмите "Скачать"');
+        } else {
+          // Обновляем существующую ячейку
+          await fetch('https://api.npoint.io/' + id, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(places)
+          });
+          localStorage.setItem('ekb_sync_id', id);
+          alert('Данные успешно сохранены в облаке!');
+        }
+      } catch (e) { alert('Ошибка: Проверьте интернет.'); }
+      btn.innerText = 'Выгрузить';
+    }
+
+    // Скачивание из облака
+    async function downloadFromCloud() {
+      let id = document.getElementById('syncIdInput').value.trim();
+      if (!id) { alert('Сначала введите Sync ID!'); return; }
+      const btn = document.getElementById('btnDownload');
+      btn.innerText = 'Скачивание...';
+
+      try {
+        const res = await fetch('https://api.npoint.io/' + id);
+        if (!res.ok) throw new Error('Не найдено');
+        const data = await res.json();
+        
+        if (Array.isArray(data)) {
+          localStorage.setItem('ekb_sync_id', id);
+          Object.values(markersMap).forEach(m => map.removeLayer(m));
+          markersMap = {}; places = data; saveToStorage();
+          places.forEach(renderMarker);
+          alert('Успешно! Метки загружены.');
+          closeSyncModal();
+        } else { alert('Ошибка структуры данных в облаке.'); }
+      } catch (e) { alert('ID не найден или произошла ошибка.'); }
+      btn.innerText = 'Скачать';
+    }
+
+    // --- 4. РУЧНОЙ БЭКАП (Файлы) ---
     function exportData() {
       const blob = new Blob([JSON.stringify(places, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -311,10 +400,8 @@
       a.href = url; a.download = `ekb_map_${new Date().toISOString().slice(0,10)}.json`; a.click();
       URL.revokeObjectURL(url);
     }
-
     function importData(event) {
-      const file = event.target.files[0];
-      if (!file) return;
+      const file = event.target.files[0]; if (!file) return;
       const reader = new FileReader();
       reader.onload = function(e) {
         try {
@@ -322,9 +409,9 @@
           if (Array.isArray(imported)) {
             Object.values(markersMap).forEach(m => map.removeLayer(m));
             markersMap = {}; places = imported; saveToStorage();
-            places.forEach(renderMarker); alert('Данные успешно импортированы!');
+            places.forEach(renderMarker); alert('Файл успешно загружен!');
           }
-        } catch (err) { alert('Ошибка чтения файла: неверный формат JSON.'); }
+        } catch (err) { alert('Ошибка чтения файла.'); }
       };
       reader.readAsText(file);
     }
