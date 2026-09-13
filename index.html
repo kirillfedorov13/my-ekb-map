@@ -9,52 +9,53 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
 
-  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <!-- Leaflet Routing Machine CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
 
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; transition: background 0.2s, color 0.2s; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #f4f6f9; }
 
     #map { width: 100%; height: 100%; z-index: 1; }
 
     .leaflet-control-attribution { display: none !important; }
-
-    /* Панель маршрута - скрываем лишние детали для мобилок */
     .leaflet-routing-container { max-height: 30vh; overflow-y: auto; background: white; padding: 8px; border-radius: 8px; font-size: 12px; }
 
-    .custom-marker {
-      background-color: white; border: 3px solid currentColor; border-radius: 50%;
-      width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
-      font-size: 18px; box-shadow: 0 3px 6px rgba(0,0,0,0.4); position: relative;
-    }
-    .custom-marker::after {
-      content: ""; position: absolute; bottom: -11px; left: 50%; transform: translateX(-50%);
-      border-width: 10px 8px 0; border-style: solid; border-top-color: currentColor;
-      border-bottom-color: transparent; border-left-color: transparent; border-right-color: transparent;
-    }
+    /* --- ТЁМНАЯ ТЕМА --- */
+    body.dark-mode { background: #0f172a; }
+    
+    /* Инверсия самой карты (превращает дневную карту в ночную) */
+    body.dark-mode .leaflet-tile-pane { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
+    
+    body.dark-mode .modal-content { background: #1e293b; color: #f8fafc; }
+    body.dark-mode .modal-content h3, body.dark-mode .form-group label { color: #f8fafc; }
+    body.dark-mode .form-group input, body.dark-mode .form-group select, body.dark-mode .form-group textarea { background: #334155; color: #f8fafc; border: 1px solid #475569; }
+    body.dark-mode .btn { background: #334155; color: #f8fafc; border-color: #475569; }
+    body.dark-mode .leaflet-popup-content-wrapper, body.dark-mode .leaflet-popup-tip { background: #1e293b; color: #f8fafc; }
+    body.dark-mode .popup-card h4 { color: #f8fafc; }
+    body.dark-mode .popup-comment { color: #cbd5e1; }
+    body.dark-mode .friend-item { background: #334155; border-color: #475569; }
+
+    /* Кастомные метки */
+    .custom-marker { background-color: white; border: 3px solid currentColor; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; font-size: 18px; box-shadow: 0 3px 6px rgba(0,0,0,0.4); position: relative; }
+    .custom-marker::after { content: ""; position: absolute; bottom: -11px; left: 50%; transform: translateX(-50%); border-width: 10px 8px 0; border-style: solid; border-top-color: currentColor; border-bottom-color: transparent; border-left-color: transparent; border-right-color: transparent; }
+    
+    /* Метка друга */
+    .friend-marker { background-color: #10b981; color: white; border: 2px solid white; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 16px; box-shadow: 0 0 10px rgba(16,185,129,0.8); }
 
     .controls { position: absolute; top: 12px; right: 12px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; }
+    .top-left-controls { position: absolute; top: 12px; left: 50px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; }
+
+    .btn { background: #ffffff; border: 1px solid #cbd5e1; padding: 8px 14px; border-radius: 8px; font-size: 14px; font-weight: 600; color: #1e293b; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .btn-primary { background: #2563eb !important; color: white !important; border: none !important; }
+    .btn-sync { background: #8b5cf6 !important; color: white !important; border: none !important; }
+    .btn-friends { background: #ec4899 !important; color: white !important; border: none !important; }
+    .btn-icon { font-size: 18px; padding: 10px; border-radius: 50%; width: 44px; height: 44px; background: #ffffff; border: 1px solid #cbd5e1; }
+    .btn-gps { background: #2563eb; color: white; border: none; }
     
-    /* Кнопка геолокации слева */
-    .gps-control { position: absolute; top: 12px; left: 50px; z-index: 1000; }
-
-    .btn {
-      background: #ffffff; border: 1px solid #cbd5e1; padding: 8px 14px; border-radius: 8px;
-      font-size: 14px; font-weight: 600; color: #1e293b; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
-    }
-    .btn:active { background: #f1f5f9; }
-    .btn-sync { background: #8b5cf6; color: white; border: none; }
-    .btn-gps { background: #2563eb; color: white; border: none; font-size: 18px; padding: 10px; border-radius: 50%; width: 44px; height: 44px; }
-    .btn-route { background: #10b981; color: white; border: none; }
-    .btn-clear-route { background: #ef4444; color: white; border: none; display: none; margin-top: 8px; }
-
-    .modal { display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.45); z-index: 2000; align-items: center; justify-content: center; padding: 16px; }
-    .modal-content { background: #ffffff; border-radius: 12px; width: 100%; max-width: 380px; padding: 20px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2); }
-    .modal-content h3 { margin-bottom: 12px; font-size: 18px; color: #0f172a; }
+    .modal { display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.6); z-index: 2000; align-items: center; justify-content: center; padding: 16px; }
+    .modal-content { background: #ffffff; border-radius: 12px; width: 100%; max-width: 380px; padding: 20px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2); max-height: 90vh; overflow-y: auto; }
+    .modal-content h3 { margin-bottom: 12px; font-size: 18px; }
     .form-group { margin-bottom: 12px; }
     .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
     .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; outline: none; }
@@ -62,23 +63,26 @@
     
     .popup-card { font-size: 13px; line-height: 1.4; min-width: 180px; }
     .popup-actions { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+
+    .friend-item { display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 6px; font-size: 14px; }
   </style>
 </head>
 <body>
 
   <div id="map"></div>
 
-  <!-- Кнопка геолокации -->
-  <div class="gps-control">
-    <button class="btn btn-gps" onclick="locateUser()" title="Где я?">🎯</button>
+  <!-- Панель слева -->
+  <div class="top-left-controls">
+    <button class="btn btn-icon btn-gps" id="gpsBtn" onclick="toggleTracking()" title="Моя геопозиция">🎯</button>
+    <button class="btn btn-icon" id="themeBtn" onclick="toggleTheme()" title="Сменить тему">🌙</button>
   </div>
 
-  <!-- Управление -->
+  <!-- Панель справа -->
   <div class="controls">
+    <button class="btn btn-friends" onclick="openFriendsModal()">👥 Друзья</button>
     <button class="btn btn-sync" onclick="openSyncModal()">☁️ Синхронизация</button>
     <button class="btn" onclick="exportData()">💾 Файл (JSON)</button>
-    <button class="btn btn-clear-route" id="clearRouteBtn" onclick="clearRoute()">❌ Убрать маршрут</button>
-    <input type="file" id="importFile" style="display:none" onchange="importData(event)" accept=".json">
+    <button class="btn" style="background: #ef4444; color: white; border: none; display: none;" id="clearRouteBtn" onclick="clearRoute()">❌ Маршрут</button>
   </div>
 
   <!-- Модальное окно места -->
@@ -97,17 +101,13 @@
       <div class="form-group"><input type="date" id="placeDate"></div>
       <div class="form-group">
         <select id="placeRating">
-          <option value="5">★★★★★ (Отлично)</option>
-          <option value="4">★★★★☆ (Хорошо)</option>
-          <option value="3">★★★☆☆ (Нормально)</option>
-          <option value="2">★★☆☆☆ (Плохо)</option>
-          <option value="1">★☆☆☆☆ (Ужасно)</option>
+          <option value="5">★★★★★ (Отлично)</option><option value="4">★★★★☆ (Хорошо)</option><option value="3">★★★☆☆ (Нормально)</option><option value="2">★★☆☆☆ (Плохо)</option><option value="1">★☆☆☆☆ (Ужасно)</option>
         </select>
       </div>
       <div class="form-group"><textarea id="placeComment" rows="3" placeholder="Заметка..."></textarea></div>
       <div class="modal-actions">
-        <button class="btn" onclick="closeModal()">Отмена</button>
-        <button class="btn" style="background:#2563eb; color:white; border:none;" onclick="saveCurrentPoint()">Сохранить</button>
+        <button class="btn" onclick="closeModal('pointModal')">Отмена</button>
+        <button class="btn btn-primary" onclick="saveCurrentPoint()">Сохранить</button>
       </div>
     </div>
   </div>
@@ -118,31 +118,82 @@
       <h3>Облачная синхронизация</h3>
       <div class="form-group"><input type="text" id="syncIdInput" placeholder="Ваш Sync ID"></div>
       <div class="modal-actions" style="justify-content: space-between;">
-        <button class="btn" onclick="closeSyncModal()">Закрыть</button>
+        <button class="btn" onclick="closeModal('syncModal')">Закрыть</button>
         <div style="display: flex; gap: 8px;">
           <button class="btn" style="background:#0284c7; color:white; border:none;" onclick="downloadFromCloud()">Скачать</button>
-          <button class="btn" style="background:#2563eb; color:white; border:none;" onclick="uploadToCloud()">Выгрузить</button>
+          <button class="btn btn-primary" onclick="uploadToCloud()">Выгрузить</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Скрипты Leaflet и плагина маршрутов -->
+  <!-- Модальное окно Друзей -->
+  <div class="modal" id="friendsModal">
+    <div class="modal-content">
+      <h3>Список друзей</h3>
+      <div id="friendsList" style="margin-bottom: 12px; max-height: 150px; overflow-y: auto;"></div>
+      
+      <div style="border-top: 1px solid #cbd5e1; margin-top: 12px; padding-top: 12px;">
+        <h4 style="margin-bottom: 8px; font-size: 14px;">Добавить друга</h4>
+        <div class="form-group"><input type="text" id="friendName" placeholder="Имя друга (напр. Иван)"></div>
+        <div class="form-group"><input type="text" id="friendId" placeholder="Его Sync ID"></div>
+        <button class="btn btn-primary" style="width: 100%;" onclick="addFriend()">➕ Добавить</button>
+      </div>
+
+      <div class="modal-actions" style="justify-content: space-between; margin-top: 16px;">
+        <button class="btn" onclick="closeModal('friendsModal')">Закрыть</button>
+        <button class="btn" style="background:#10b981; color:white; border:none;" onclick="scanFriendsRadar()">📡 Найти друзей</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
 
   <script>
-    // 1. ИНИЦИАЛИЗАЦИЯ (Используем стандартный OpenStreetMap - есть все дома и улицы)
     const map = L.map('map', { attributionControl: false }).setView([56.8389, 60.6057], 13);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
     let places = JSON.parse(localStorage.getItem('ekb_places') || '[]');
+    let friends = JSON.parse(localStorage.getItem('ekb_friends') || '[]');
+    
     let markersMap = {};
+    let friendMarkersMap = {};
     let pendingCoords = null, editingId = null;
-    let userLocation = null;
-    let userMarker = null;
+    let userLocation = null, userMarker = null, tracking = false;
     let routingControl = null;
 
+    // --- ИНИЦИАЛИЗАЦИЯ ТЕМЫ ---
+    let isDark = localStorage.getItem('ekb_theme') === 'dark';
+    if (isDark) { document.body.classList.add('dark-mode'); document.getElementById('themeBtn').innerText = '☀️'; }
+
+    function toggleTheme() {
+      isDark = !isDark;
+      if (isDark) { document.body.classList.add('dark-mode'); document.getElementById('themeBtn').innerText = '☀️'; }
+      else { document.body.classList.remove('dark-mode'); document.getElementById('themeBtn').innerText = '🌙'; }
+      localStorage.setItem('ekb_theme', isDark ? 'dark' : 'light');
+    }
+
+    // --- ГЕОЛОКАЦИЯ И ТРЕКИНГ ---
+    function toggleTracking() {
+      if (!tracking) {
+        map.locate({ setView: true, maxZoom: 16, enableHighAccuracy: true, watch: true });
+        tracking = true;
+        document.getElementById('gpsBtn').style.background = '#10b981'; // Зеленая
+      } else {
+        map.stopLocate();
+        tracking = false;
+        document.getElementById('gpsBtn').style.background = '#2563eb'; // Синяя
+      }
+    }
+
+    map.on('locationfound', function(e) {
+      userLocation = { lat: e.latlng.lat, lng: e.latlng.lng };
+      if (!userMarker) { userMarker = L.circleMarker(e.latlng, { radius: 8, color: 'white', weight: 2, fillColor: '#3b82f6', fillOpacity: 1, zIndexOffset: 1000 }).addTo(map); } 
+      else { userMarker.setLatLng(e.latlng); }
+    });
+
+    // --- ОТРИСОВКА МЕТОК ---
     function getCustomIcon(category) {
       let color = '#475569'; let emoji = '📌';
       if (category === 'Заведение') { color = '#ea580c'; emoji = '☕'; }
@@ -154,45 +205,20 @@
 
     places.forEach(renderMarker);
 
-    // 2. ГЕОЛОКАЦИЯ
-    function locateUser() {
-      map.locate({ setView: true, maxZoom: 16, enableHighAccuracy: true });
-    }
-
-    map.on('locationfound', function(e) {
-      userLocation = e.latlng;
-      if (!userMarker) {
-        userMarker = L.circleMarker(e.latlng, { radius: 8, color: 'white', weight: 2, fillColor: '#3b82f6', fillOpacity: 1 }).addTo(map);
-      } else {
-        userMarker.setLatLng(e.latlng);
-      }
-    });
-
-    map.on('locationerror', function(e) {
-      alert("Не удалось определить местоположение. Включите GPS на устройстве.");
-    });
-
-    // 3. ДОБАВЛЕНИЕ МЕТКИ
     map.on('click', (e) => {
-      editingId = null;
-      pendingCoords = { lat: e.latlng.lat, lng: e.latlng.lng };
-      openModal('Новое место', '', 'Заведение', new Date().toISOString().split('T')[0], '5', '');
+      editingId = null; pendingCoords = { lat: e.latlng.lat, lng: e.latlng.lng };
+      document.getElementById('modalTitle').innerText = 'Новое место';
+      document.getElementById('placeTitle').value = '';
+      document.getElementById('placeDate').value = new Date().toISOString().split('T')[0];
+      document.getElementById('placeComment').value = '';
+      document.getElementById('pointModal').style.display = 'flex';
     });
 
-    function openModal(tText, t, c, d, r, com) {
-      document.getElementById('modalTitle').innerText = tText; document.getElementById('placeTitle').value = t;
-      document.getElementById('placeCategory').value = c; document.getElementById('placeDate').value = d;
-      document.getElementById('placeRating').value = r; document.getElementById('placeComment').value = com;
-      document.getElementById('pointModal').style.display = 'flex';
-    }
-    function closeModal() { document.getElementById('pointModal').style.display = 'none'; }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
     function saveCurrentPoint() {
       const t = document.getElementById('placeTitle').value.trim(); if(!t){ alert('Введите название!'); return;}
-      const pData = {
-        title: t, category: document.getElementById('placeCategory').value, date: document.getElementById('placeDate').value,
-        rating: document.getElementById('placeRating').value, comment: document.getElementById('placeComment').value.trim()
-      };
+      const pData = { title: t, category: document.getElementById('placeCategory').value, date: document.getElementById('placeDate').value, rating: document.getElementById('placeRating').value, comment: document.getElementById('placeComment').value.trim() };
       
       if (editingId) {
         const p = places.find(x => x.id === editingId);
@@ -201,48 +227,18 @@
         const newPlace = { id: Date.now().toString(), lat: pendingCoords.lat, lng: pendingCoords.lng, ...pData };
         places.push(newPlace); renderMarker(newPlace);
       }
-      localStorage.setItem('ekb_places', JSON.stringify(places)); closeModal();
-    }
-
-    // 4. МАРШРУТИЗАЦИЯ
-    window.buildRoute = function(lat, lng) {
-      if (!userLocation) {
-        alert("Сначала нажмите кнопку прицела (🎯) слева вверху, чтобы определить вашу геопозицию.");
-        return;
-      }
-      
-      if (routingControl) { map.removeControl(routingControl); }
-      
-      routingControl = L.Routing.control({
-        waypoints: [ L.latLng(userLocation.lat, userLocation.lng), L.latLng(lat, lng) ],
-        language: 'ru',
-        routeWhileDragging: false,
-        addWaypoints: false,
-        fitSelectedRoutes: true,
-        show: false // Скрываем текстовую панель шагов маршрута для компактности
-      }).addTo(map);
-
-      document.getElementById('clearRouteBtn').style.display = 'flex';
-      map.closePopup();
-    };
-
-    function clearRoute() {
-      if (routingControl) { map.removeControl(routingControl); routingControl = null; }
-      document.getElementById('clearRouteBtn').style.display = 'none';
+      localStorage.setItem('ekb_places', JSON.stringify(places)); closeModal('pointModal');
     }
 
     function buildPopupHtml(p) {
-      return `
-        <div class="popup-card">
-          <h4>${p.title}</h4>
+      return `<div class="popup-card"><h4>${p.title}</h4>
           <div style="color:#f59e0b;font-weight:bold;">${'★'.repeat(p.rating)}${'☆'.repeat(5-p.rating)} (${p.category})</div>
-          <div style="margin:6px 0;">${p.comment}</div>
+          <div class="popup-comment" style="margin:6px 0;">${p.comment}</div>
           <div class="popup-actions">
-            <button class="btn btn-route" style="padding:4px 8px;font-size:11px;" onclick="buildRoute(${p.lat}, ${p.lng})">📍 Маршрут</button>
+            <button class="btn" style="background:#10b981;color:white;border:none;padding:4px 8px;font-size:11px;" onclick="buildRoute(${p.lat}, ${p.lng})">📍 Маршрут</button>
             <button class="btn" style="background:#0284c7;color:white;border:none;padding:4px 8px;font-size:11px;" onclick="startEditPlace('${p.id}')">Изменить</button>
             <button class="btn" style="background:#ef4444;color:white;border:none;padding:4px 8px;font-size:11px;" onclick="deletePlace('${p.id}')">Удалить</button>
-          </div>
-        </div>`;
+          </div></div>`;
     }
 
     function renderMarker(p) {
@@ -252,7 +248,11 @@
 
     window.startEditPlace = function(id) {
       const p = places.find(x => x.id === id); if(!p) return;
-      if(markersMap[id]) markersMap[id].closePopup(); editingId = id; openModal('Редактировать', p.title, p.category, p.date, p.rating, p.comment);
+      if(markersMap[id]) markersMap[id].closePopup(); editingId = id;
+      document.getElementById('modalTitle').innerText = 'Редактировать'; document.getElementById('placeTitle').value = p.title;
+      document.getElementById('placeCategory').value = p.category; document.getElementById('placeDate').value = p.date;
+      document.getElementById('placeRating').value = p.rating; document.getElementById('placeComment').value = p.comment;
+      document.getElementById('pointModal').style.display = 'flex';
     };
 
     window.deletePlace = function(id) {
@@ -261,20 +261,34 @@
       places = places.filter(x => x.id !== id); localStorage.setItem('ekb_places', JSON.stringify(places));
     };
 
-    // 5. СИНХРОНИЗАЦИЯ
+    window.buildRoute = function(lat, lng) {
+      if (!userLocation) { alert("Включите геопозицию (кнопка 🎯 слева)."); return; }
+      if (routingControl) { map.removeControl(routingControl); }
+      routingControl = L.Routing.control({ waypoints: [ L.latLng(userLocation.lat, userLocation.lng), L.latLng(lat, lng) ], show: false }).addTo(map);
+      document.getElementById('clearRouteBtn').style.display = 'flex'; map.closePopup();
+    };
+    function clearRoute() { if (routingControl) { map.removeControl(routingControl); routingControl = null; } document.getElementById('clearRouteBtn').style.display = 'none'; }
+
+    // --- СИНХРОНИЗАЦИЯ & РАДАР ---
     function openSyncModal() { document.getElementById('syncIdInput').value = localStorage.getItem('ekb_sync_id') || ''; document.getElementById('syncModal').style.display = 'flex'; }
-    function closeSyncModal() { document.getElementById('syncModal').style.display = 'none'; }
     
     async function uploadToCloud() {
       let id = document.getElementById('syncIdInput').value.trim();
+      let payload = [...places];
+      
+      // Вшиваем свою геопозицию в массив для друзей, если она включена
+      if (userLocation) {
+        payload.push({ id: 'user_live_location', isUserLocation: true, lat: userLocation.lat, lng: userLocation.lng, timestamp: new Date().toLocaleString() });
+      }
+
       try {
         if (!id) {
-          const res = await fetch('https://api.npoint.io/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(places) });
+          const res = await fetch('https://api.npoint.io/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
           id = (await res.json()).id; localStorage.setItem('ekb_sync_id', id); document.getElementById('syncIdInput').value = id;
           alert('Создан Sync ID: ' + id);
         } else {
-          await fetch('https://api.npoint.io/' + id, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(places) });
-          localStorage.setItem('ekb_sync_id', id); alert('Успешно выгружено!');
+          await fetch('https://api.npoint.io/' + id, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          localStorage.setItem('ekb_sync_id', id); alert('Успешно выгружено (с вашей позицией)!');
         }
       } catch (e) { alert('Ошибка сети.'); }
     }
@@ -283,18 +297,67 @@
       let id = document.getElementById('syncIdInput').value.trim(); if (!id) return;
       try {
         const res = await fetch('https://api.npoint.io/' + id); if (!res.ok) throw new Error();
-        const data = await res.json();
+        let data = await res.json();
         if (Array.isArray(data)) {
+          // Отфильтровываем чужую геопозицию из массива мест при скачивании
+          data = data.filter(p => !p.isUserLocation);
           localStorage.setItem('ekb_sync_id', id); Object.values(markersMap).forEach(m => map.removeLayer(m));
           markersMap = {}; places = data; localStorage.setItem('ekb_places', JSON.stringify(places));
-          places.forEach(renderMarker); alert('Загружено!'); closeSyncModal();
+          places.forEach(renderMarker); alert('Загружено!'); closeModal('syncModal');
         }
       } catch (e) { alert('Ошибка или ID не найден.'); }
     }
+
+    // --- ЛОГИКА ДРУЗЕЙ ---
+    function openFriendsModal() { renderFriendsList(); document.getElementById('friendsModal').style.display = 'flex'; }
     
-    function exportData() {
-      const url = URL.createObjectURL(new Blob([JSON.stringify(places, null, 2)], { type: 'application/json' }));
-      const a = document.createElement('a'); a.href = url; a.download = `ekb_map.json`; a.click(); URL.revokeObjectURL(url);
+    function renderFriendsList() {
+      const list = document.getElementById('friendsList'); list.innerHTML = '';
+      if(friends.length === 0) { list.innerHTML = '<div style="color:#64748b;font-size:13px;">Список пуст.</div>'; return; }
+      friends.forEach((f, idx) => {
+        list.innerHTML += `<div class="friend-item">
+          <b>${f.name}</b> <span style="color:#94a3b8;font-size:12px;">(${f.id})</span>
+          <button class="btn" style="padding:2px 6px;font-size:12px;background:#ef4444;color:white;border:none;" onclick="removeFriend(${idx})">Удалить</button>
+        </div>`;
+      });
+    }
+
+    function addFriend() {
+      const name = document.getElementById('friendName').value.trim();
+      const id = document.getElementById('friendId').value.trim();
+      if(!name || !id) { alert('Заполните оба поля!'); return; }
+      friends.push({name, id}); localStorage.setItem('ekb_friends', JSON.stringify(friends));
+      document.getElementById('friendName').value = ''; document.getElementById('friendId').value = ''; renderFriendsList();
+    }
+
+    window.removeFriend = function(idx) {
+      if(friendMarkersMap[friends[idx].id]) { map.removeLayer(friendMarkersMap[friends[idx].id]); delete friendMarkersMap[friends[idx].id]; }
+      friends.splice(idx, 1); localStorage.setItem('ekb_friends', JSON.stringify(friends)); renderFriendsList();
+    };
+
+    async function scanFriendsRadar() {
+      closeModal('friendsModal');
+      if(friends.length === 0) { alert('Сначала добавьте друзей!'); return; }
+      let found = 0;
+      
+      for(let f of friends) {
+        try {
+          const res = await fetch('https://api.npoint.io/' + f.id);
+          const data = await res.json();
+          const friendLoc = data.find(p => p.isUserLocation === true);
+          
+          if(friendLoc) {
+            found++;
+            if(friendMarkersMap[f.id]) map.removeLayer(friendMarkersMap[f.id]);
+            
+            const icon = L.divIcon({ html: `<div class="friend-marker">🧑</div>`, className: '', iconSize: [32,32], iconAnchor: [16,16] });
+            const fm = L.marker([friendLoc.lat, friendLoc.lng], {icon, zIndexOffset: 2000}).addTo(map);
+            fm.bindPopup(`<b>${f.name}</b><br><small>Был в сети: ${friendLoc.timestamp}</small>`);
+            friendMarkersMap[f.id] = fm;
+          }
+        } catch(e) {}
+      }
+      alert(`Радар обновлен! Найдено друзей: ${found}`);
     }
   </script>
 </body>
