@@ -5,22 +5,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Мой Екатеринбург — Карта мест</title>
 
-  <!-- Манифест PWA для запуска как отдельное приложение -->
+  <!-- Манифест PWA -->
   <link rel="manifest" href="manifest.json">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
 
-  <!-- Стили Leaflet (библиотека интерактивных карт) -->
+  <!-- Стили библиотеки Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
   <style>
-    /* Сброс базовых стилей под fullscreen приложение */
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #f4f6f9; }
 
     #map { width: 100%; height: 100%; z-index: 1; }
 
-    /* Плавающая панель управления */
+    /* Полное скрытие копирайтов и водяных знаков в углу карты */
+    .leaflet-control-attribution {
+      display: none !important;
+    }
+
+    /* Верхние кнопки управления (Резервная копия) */
     .controls {
       position: absolute;
       top: 12px;
@@ -41,10 +45,11 @@
       color: #1e293b;
       box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
       cursor: pointer;
+      transition: background 0.15s;
     }
     .btn:active { background: #f1f5f9; }
 
-    /* Всплывающее окно добавления/редактирования */
+    /* Модальное окно (создание и редактирование) */
     .modal {
       display: none;
       position: absolute;
@@ -80,13 +85,15 @@
 
     .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
     .btn-primary { background: #2563eb; color: #fff; border: none; }
+    .btn-edit { background: #0284c7; color: #fff; border: none; }
     .btn-danger { background: #ef4444; color: #fff; border: none; }
 
-    /* Оформление балуна метки */
-    .popup-card { font-size: 13px; line-height: 1.4; }
+    /* Оформление карточки внутри балуна */
+    .popup-card { font-size: 13px; line-height: 1.4; min-width: 180px; }
     .popup-card h4 { font-size: 15px; margin-bottom: 4px; color: #0f172a; }
-    .popup-rating { color: #f59e0b; font-weight: bold; margin-bottom: 4px; }
-    .popup-actions { margin-top: 8px; display: flex; gap: 6px; }
+    .popup-rating { color: #f59e0b; font-weight: bold; margin-bottom: 6px; }
+    .popup-comment { margin-bottom: 6px; color: #334155; }
+    .popup-actions { margin-top: 10px; display: flex; gap: 6px; }
   </style>
 </head>
 <body>
@@ -94,20 +101,20 @@
   <!-- Контейнер карты -->
   <div id="map"></div>
 
-  <!-- Верхняя панель: резервная копия данных -->
+  <!-- Кнопки экспорта и импорта -->
   <div class="controls">
     <button class="btn" onclick="exportData()"> Экспорт (JSON)</button>
     <button class="btn" onclick="document.getElementById('importFile').click()"> Импорт</button>
     <input type="file" id="importFile" style="display:none" onchange="importData(event)" accept=".json">
   </div>
 
-  <!-- Модальное окно для создания/редактирования точки -->
+  <!-- Модальное окно создания / редактирования метки -->
   <div class="modal" id="pointModal">
     <div class="modal-content">
       <h3 id="modalTitle">Новое место</h3>
       <div class="form-group">
-        <label>Название / Адрес</label>
-        <input type="text" id="placeTitle" placeholder="Например: Кафе «Энгельс»">
+        <label>Название / Описание места</label>
+        <input type="text" id="placeTitle" placeholder="Например: Любимая кофейня">
       </div>
       <div class="form-group">
         <label>Категория</label>
@@ -131,7 +138,7 @@
       </div>
       <div class="form-group">
         <label>Впечатления / Заметка</label>
-        <textarea id="placeComment" rows="3" placeholder="Что понравилось, когда был, цены..."></textarea>
+        <textarea id="placeComment" rows="3" placeholder="Что запомнилось, цены, когда посещал..."></textarea>
       </div>
       <div class="modal-actions">
         <button class="btn" onclick="closeModal()">Отмена</button>
@@ -145,110 +152,148 @@
 
   <script>
     // -------------------------------------------------------------------------
-    // 1. ИНИЦИАЛИЗАЦИЯ КАРТЫ ЕКАТЕРИНБУРГА
-    // Координаты центра: Площадь 1905 года (56.8389° N, 60.6057° E), зум 13
+    // 1. ИНИЦИАЛИЗАЦИЯ КАРТЫ
+    // attributionControl: false полностью убирает стандартную строчку копирайтов Leaflet
     // -------------------------------------------------------------------------
-    const map = L.map('map').setView([56.8389, 60.6057], 13);
+    const map = L.map('map', {
+      attributionControl: false
+    }).setView([56.8389, 60.6057], 13); // Екатеринбург, Площадь 1905 года
 
-    // Слой карты: CartoDB Voyager.
-    // Это детальная векторная схема без лишнего спутникового шума (как 2ГИС/Яндекс Схема).
+    // Подложка карты (CartoDB Voyager - чистая и читаемая схема без спутника)
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
       maxZoom: 19
     }).addTo(map);
 
     // -------------------------------------------------------------------------
-    // 2. ХРАНЕНИЕ ДАННЫХ И ПЕРЕМЕННЫЕ
+    // 2. ХРАНЕНИЕ И СОСТОЯНИЕ
     // -------------------------------------------------------------------------
     let places = JSON.parse(localStorage.getItem('ekb_places') || '[]');
-    let markersMap = {}; // Хранилище объектов маркеров на карте по id
-    let pendingCoords = null; // Координаты клика перед сохранением
+    let markersMap = {};      // Ссылка на маркеры Leaflet по id
+    let pendingCoords = null; // Координаты для нового места
+    let editingId = null;     // ID редактируемого места (если null — создаем новое)
 
-    // Загрузка сохраненных меток при старте
+    // Первоначальная отрисовка сохраненных меток
     places.forEach(renderMarker);
 
     // -------------------------------------------------------------------------
-    // 3. ДОБАВЛЕНИЕ НОВОЙ ТОЧКИ ПО КЛИКУ НА КАРТУ
+    // 3. ДОБАВЛЕНИЕ ПО КЛИКУ НА КАРТУ
     // -------------------------------------------------------------------------
     map.on('click', (e) => {
+      editingId = null; // Сбрасываем режим редактирования
       pendingCoords = { lat: e.latlng.lat, lng: e.latlng.lng };
-      openModal();
+      openModal('Новое место', '', 'Заведение', '5', '');
     });
 
-    function openModal() {
-      document.getElementById('modalTitle').innerText = 'Новое место';
-      document.getElementById('placeTitle').value = '';
-      document.getElementById('placeComment').value = '';
-      document.getElementById('placeRating').value = '5';
-      document.getElementById('placeCategory').value = 'Заведение';
+    function openModal(titleText, title, cat, rating, comment) {
+      document.getElementById('modalTitle').innerText = titleText;
+      document.getElementById('placeTitle').value = title;
+      document.getElementById('placeCategory').value = cat;
+      document.getElementById('placeRating').value = rating;
+      document.getElementById('placeComment').value = comment;
       document.getElementById('pointModal').style.display = 'flex';
     }
 
     function closeModal() {
       document.getElementById('pointModal').style.display = 'none';
       pendingCoords = null;
+      editingId = null;
     }
 
+    // -------------------------------------------------------------------------
+    // 4. СОХРАНЕНИЕ (И ДЛЯ СОЗДАНИЯ, И ДЛЯ РЕДАКТИРОВАНИЯ)
+    // -------------------------------------------------------------------------
     function saveCurrentPoint() {
       const title = document.getElementById('placeTitle').value.trim();
       if (!title) {
-        alert('Пожалуйста, введите название места!');
+        alert('Пожалуйста, введите название!');
         return;
       }
 
-      const newPlace = {
-        id: Date.now().toString(),
-        title: title,
-        category: document.getElementById('placeCategory').value,
-        rating: document.getElementById('placeRating').value,
-        comment: document.getElementById('placeComment').value.trim(),
-        lat: pendingCoords.lat,
-        lng: pendingCoords.lng,
-        date: new Date().toLocaleDateString('ru-RU')
-      };
+      const category = document.getElementById('placeCategory').value;
+      const rating = document.getElementById('placeRating').value;
+      const comment = document.getElementById('placeComment').value.trim();
 
-      places.push(newPlace);
+      if (editingId) {
+        // --- РЕЖИМ РЕДАКТИРОВАНИЯ ---
+        const place = places.find(p => p.id === editingId);
+        if (place) {
+          place.title = title;
+          place.category = category;
+          place.rating = rating;
+          place.comment = comment;
+
+          // Обновляем текст в балуне маркера на карте
+          if (markersMap[editingId]) {
+            markersMap[editingId].setPopupContent(buildPopupHtml(place));
+          }
+        }
+      } else {
+        // --- РЕЖИМ СОЗДАНИЯ НОВОЙ МЕТКИ ---
+        const newPlace = {
+          id: Date.now().toString(),
+          title: title,
+          category: category,
+          rating: rating,
+          comment: comment,
+          lat: pendingCoords.lat,
+          lng: pendingCoords.lng,
+          date: new Date().toLocaleDateString('ru-RU')
+        };
+        places.push(newPlace);
+        renderMarker(newPlace);
+      }
+
       saveToStorage();
-      renderMarker(newPlace);
       closeModal();
     }
 
     // -------------------------------------------------------------------------
-    // 4. ОТРИСОВКА МЕТКИ НА КАРТЕ
+    // 5. ГЕНЕРАЦИЯ СОДЕРЖИМОГО КАРТОЧКИ (БАЛУНА)
     // -------------------------------------------------------------------------
-    function renderMarker(place) {
-      const marker = L.marker([place.lat, place.lng]).addTo(map);
-
-      // Формирование содержимого балуна при клике на метку
-      const popupHtml = `
+    function buildPopupHtml(place) {
+      return `
         <div class="popup-card">
           <h4>${escapeHtml(place.title)}</h4>
           <div class="popup-rating">${'★'.repeat(place.rating)}${'☆'.repeat(5 - place.rating)} (${place.category})</div>
-          <p>${escapeHtml(place.comment || 'Без описания')}</p>
-          <small style="color:#64748b;">Дата добавления: ${place.date}</small>
+          <div class="popup-comment">${escapeHtml(place.comment || 'Без описания')}</div>
+          <small style="color:#64748b;">Добавлено: ${place.date}</small>
           <div class="popup-actions">
+            <button class="btn btn-edit" style="padding:4px 8px; font-size:11px;" onclick="startEditPlace('${place.id}')">Редактировать</button>
             <button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="deletePlace('${place.id}')">Удалить</button>
           </div>
         </div>
       `;
+    }
 
-      marker.bindPopup(popupHtml);
+    // Отрисовка маркера на карте
+    function renderMarker(place) {
+      const marker = L.marker([place.lat, place.lng]).addTo(map);
+      marker.bindPopup(buildPopupHtml(place));
       markersMap[place.id] = marker;
     }
 
     // -------------------------------------------------------------------------
-    // 5. УДАЛЕНИЕ МЕСТА
+    // 6. ФУНКЦИИ РЕДАКТИРОВАНИЯ И УДАЛЕНИЯ
     // -------------------------------------------------------------------------
-    window.deletePlace = function(id) {
-      if (!confirm('Удалить эту отметку?')) return;
+    window.startEditPlace = function(id) {
+      const place = places.find(p => p.id === id);
+      if (!place) return;
 
-      // Удаление с карты
+      // Закрываем балун и переключаем окно в режим редактирования
+      if (markersMap[id]) markersMap[id].closePopup();
+
+      editingId = id;
+      openModal('Редактировать место', place.title, place.category, place.rating, place.comment);
+    };
+
+    window.deletePlace = function(id) {
+      if (!confirm('Удалить эту метку?')) return;
+
       if (markersMap[id]) {
         map.removeLayer(markersMap[id]);
         delete markersMap[id];
       }
 
-      // Удаление из базы данных
       places = places.filter(p => p.id !== id);
       saveToStorage();
     };
@@ -264,14 +309,14 @@
     }
 
     // -------------------------------------------------------------------------
-    // 6. СИНХРОНИЗАЦИЯ (ЭКСПОРТ / ИМПОРТ JSON ДЛЯ ПЕРЕНОСА МЕЖДУ ПК И ТЕЛЕФОНОМ)
+    // 7. РЕЗЕРВНАЯ КОПИЯ (JSON ЭКСПОРТ / ИМПОРТ)
     // -------------------------------------------------------------------------
     function exportData() {
       const blob = new Blob([JSON.stringify(places, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `ekb_places_backup_${new Date().toISOString().slice(0,10)}.json`;
+      a.download = `ekb_map_${new Date().toISOString().slice(0,10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
     }
@@ -285,11 +330,8 @@
         try {
           const imported = JSON.parse(e.target.result);
           if (Array.isArray(imported)) {
-            // Очищаем текущие маркеры
             Object.values(markersMap).forEach(m => map.removeLayer(m));
             markersMap = {};
-
-            // Перезаписываем базу
             places = imported;
             saveToStorage();
             places.forEach(renderMarker);
