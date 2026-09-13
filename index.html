@@ -5,12 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Мой Екатеринбург — Карта мест</title>
 
-  <!-- Манифест PWA -->
   <link rel="manifest" href="manifest.json">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
 
-  <!-- Стили библиотеки Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
   <style>
@@ -19,12 +17,44 @@
 
     #map { width: 100%; height: 100%; z-index: 1; }
 
-    /* Полное скрытие копирайтов и водяных знаков в углу карты */
+    /* Жесткое скрытие ЛЮБЫХ водяных знаков и копирайтов внизу карты */
+    .leaflet-control-container .leaflet-bottom.leaflet-right,
     .leaflet-control-attribution {
       display: none !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
     }
 
-    /* Верхние кнопки управления (Резервная копия) */
+    /* Кастомная метка с эмодзи */
+    .custom-marker {
+      background-color: white;
+      border: 3px solid currentColor;
+      border-radius: 50%;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.4);
+      position: relative;
+    }
+    /* Хвостик (треугольник) внизу метки */
+    .custom-marker::after {
+      content: "";
+      position: absolute;
+      bottom: -11px;
+      left: 50%;
+      transform: translateX(-50%);
+      border-width: 10px 8px 0;
+      border-style: solid;
+      border-top-color: currentColor;
+      border-bottom-color: transparent;
+      border-left-color: transparent;
+      border-right-color: transparent;
+    }
+
+    /* Интерфейс управления */
     .controls {
       position: absolute;
       top: 12px;
@@ -49,7 +79,7 @@
     }
     .btn:active { background: #f1f5f9; }
 
-    /* Модальное окно (создание и редактирование) */
+    /* Модальное окно */
     .modal {
       display: none;
       position: absolute;
@@ -69,18 +99,13 @@
       padding: 20px;
       box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2);
     }
-
     .modal-content h3 { margin-bottom: 12px; font-size: 18px; color: #0f172a; }
 
     .form-group { margin-bottom: 12px; }
     .form-group label { display: block; font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 4px; }
     .form-group input, .form-group select, .form-group textarea {
-      width: 100%;
-      padding: 8px 10px;
-      border: 1px solid #cbd5e1;
-      border-radius: 6px;
-      font-size: 14px;
-      outline: none;
+      width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1;
+      border-radius: 6px; font-size: 14px; outline: none;
     }
 
     .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
@@ -98,17 +123,14 @@
 </head>
 <body>
 
-  <!-- Контейнер карты -->
   <div id="map"></div>
 
-  <!-- Кнопки экспорта и импорта -->
   <div class="controls">
     <button class="btn" onclick="exportData()"> Экспорт (JSON)</button>
     <button class="btn" onclick="document.getElementById('importFile').click()"> Импорт</button>
     <input type="file" id="importFile" style="display:none" onchange="importData(event)" accept=".json">
   </div>
 
-  <!-- Модальное окно создания / редактирования метки -->
   <div class="modal" id="pointModal">
     <div class="modal-content">
       <h3 id="modalTitle">Новое место</h3>
@@ -120,10 +142,10 @@
         <label>Категория</label>
         <select id="placeCategory">
           <option value="Заведение">☕ Заведение (кафе, бар, ресторан)</option>
-          <option value="Достопримечательность"> Достопримечательность / Памятник</option>
-          <option value="Парк/Природа"> Парк / Набережная</option>
-          <option value="Улица/Район"> Улица / Маршрут</option>
-          <option value="Другое"> Другое</option>
+          <option value="Достопримечательность">🏛️ Достопримечательность</option>
+          <option value="Парк/Природа">🌲 Парк / Набережная</option>
+          <option value="Улица/Район">🛣️ Улица / Маршрут</option>
+          <option value="Другое">📌 Другое</option>
         </select>
       </div>
       <div class="form-group">
@@ -147,39 +169,47 @@
     </div>
   </div>
 
-  <!-- Библиотека Leaflet -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <script>
-    // -------------------------------------------------------------------------
-    // 1. ИНИЦИАЛИЗАЦИЯ КАРТЫ
-    // attributionControl: false полностью убирает стандартную строчку копирайтов Leaflet
-    // -------------------------------------------------------------------------
     const map = L.map('map', {
-      attributionControl: false
-    }).setView([56.8389, 60.6057], 13); // Екатеринбург, Площадь 1905 года
+      attributionControl: false // Отключает стандартный копирайт Leaflet
+    }).setView([56.8389, 60.6057], 13);
 
-    // Подложка карты (CartoDB Voyager - чистая и читаемая схема без спутника)
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
       maxZoom: 19
     }).addTo(map);
 
-    // -------------------------------------------------------------------------
-    // 2. ХРАНЕНИЕ И СОСТОЯНИЕ
-    // -------------------------------------------------------------------------
     let places = JSON.parse(localStorage.getItem('ekb_places') || '[]');
-    let markersMap = {};      // Ссылка на маркеры Leaflet по id
-    let pendingCoords = null; // Координаты для нового места
-    let editingId = null;     // ID редактируемого места (если null — создаем новое)
+    let markersMap = {};
+    let pendingCoords = null;
+    let editingId = null;
 
-    // Первоначальная отрисовка сохраненных меток
+    // --- ФУНКЦИЯ ДИЗАЙНА ИКОНКИ ---
+    function getCustomIcon(category) {
+      let color = '#475569'; // Серый (по умолчанию)
+      let emoji = '📌';
+
+      if (category === 'Заведение') { color = '#ea580c'; emoji = '☕'; }         // Оранжевый
+      if (category === 'Достопримечательность') { color = '#7c3aed'; emoji = '🏛️'; } // Фиолетовый
+      if (category === 'Парк/Природа') { color = '#10b981'; emoji = '🌲'; }       // Зеленый
+      if (category === 'Улица/Район') { color = '#2563eb'; emoji = '🛣️'; }         // Синий
+
+      const html = `<div class="custom-marker" style="color: ${color};">${emoji}</div>`;
+
+      return L.divIcon({
+        html: html,
+        className: '', // Отключаем стандартные стили Leaflet для фона
+        iconSize: [36, 46], // Ширина, Высота (36px круг + 10px хвостик)
+        iconAnchor: [18, 46], // Точка привязки: центр по X, низ по Y
+        popupAnchor: [0, -42] // Балун открывается над меткой
+      });
+    }
+
     places.forEach(renderMarker);
 
-    // -------------------------------------------------------------------------
-    // 3. ДОБАВЛЕНИЕ ПО КЛИКУ НА КАРТУ
-    // -------------------------------------------------------------------------
     map.on('click', (e) => {
-      editingId = null; // Сбрасываем режим редактирования
+      editingId = null;
       pendingCoords = { lat: e.latlng.lat, lng: e.latlng.lng };
       openModal('Новое место', '', 'Заведение', '5', '');
     });
@@ -199,44 +229,30 @@
       editingId = null;
     }
 
-    // -------------------------------------------------------------------------
-    // 4. СОХРАНЕНИЕ (И ДЛЯ СОЗДАНИЯ, И ДЛЯ РЕДАКТИРОВАНИЯ)
-    // -------------------------------------------------------------------------
     function saveCurrentPoint() {
       const title = document.getElementById('placeTitle').value.trim();
-      if (!title) {
-        alert('Пожалуйста, введите название!');
-        return;
-      }
+      if (!title) { alert('Пожалуйста, введите название!'); return; }
 
       const category = document.getElementById('placeCategory').value;
       const rating = document.getElementById('placeRating').value;
       const comment = document.getElementById('placeComment').value.trim();
 
       if (editingId) {
-        // --- РЕЖИМ РЕДАКТИРОВАНИЯ ---
         const place = places.find(p => p.id === editingId);
         if (place) {
-          place.title = title;
-          place.category = category;
-          place.rating = rating;
-          place.comment = comment;
+          place.title = title; place.category = category;
+          place.rating = rating; place.comment = comment;
 
-          // Обновляем текст в балуне маркера на карте
           if (markersMap[editingId]) {
             markersMap[editingId].setPopupContent(buildPopupHtml(place));
+            markersMap[editingId].setIcon(getCustomIcon(place.category)); // Меняем иконку при редактировании
           }
         }
       } else {
-        // --- РЕЖИМ СОЗДАНИЯ НОВОЙ МЕТКИ ---
         const newPlace = {
           id: Date.now().toString(),
-          title: title,
-          category: category,
-          rating: rating,
-          comment: comment,
-          lat: pendingCoords.lat,
-          lng: pendingCoords.lng,
+          title: title, category: category, rating: rating, comment: comment,
+          lat: pendingCoords.lat, lng: pendingCoords.lng,
           date: new Date().toLocaleDateString('ru-RU')
         };
         places.push(newPlace);
@@ -247,9 +263,6 @@
       closeModal();
     }
 
-    // -------------------------------------------------------------------------
-    // 5. ГЕНЕРАЦИЯ СОДЕРЖИМОГО КАРТОЧКИ (БАЛУНА)
-    // -------------------------------------------------------------------------
     function buildPopupHtml(place) {
       return `
         <div class="popup-card">
@@ -265,81 +278,53 @@
       `;
     }
 
-    // Отрисовка маркера на карте
     function renderMarker(place) {
-      const marker = L.marker([place.lat, place.lng]).addTo(map);
+      const marker = L.marker([place.lat, place.lng], {
+        icon: getCustomIcon(place.category) // Устанавливаем нашу кастомную иконку
+      }).addTo(map);
       marker.bindPopup(buildPopupHtml(place));
       markersMap[place.id] = marker;
     }
 
-    // -------------------------------------------------------------------------
-    // 6. ФУНКЦИИ РЕДАКТИРОВАНИЯ И УДАЛЕНИЯ
-    // -------------------------------------------------------------------------
     window.startEditPlace = function(id) {
       const place = places.find(p => p.id === id);
       if (!place) return;
-
-      // Закрываем балун и переключаем окно в режим редактирования
       if (markersMap[id]) markersMap[id].closePopup();
-
       editingId = id;
       openModal('Редактировать место', place.title, place.category, place.rating, place.comment);
     };
 
     window.deletePlace = function(id) {
       if (!confirm('Удалить эту метку?')) return;
-
-      if (markersMap[id]) {
-        map.removeLayer(markersMap[id]);
-        delete markersMap[id];
-      }
-
+      if (markersMap[id]) { map.removeLayer(markersMap[id]); delete markersMap[id]; }
       places = places.filter(p => p.id !== id);
       saveToStorage();
     };
 
-    function saveToStorage() {
-      localStorage.setItem('ekb_places', JSON.stringify(places));
-    }
+    function saveToStorage() { localStorage.setItem('ekb_places', JSON.stringify(places)); }
+    function escapeHtml(text) { return text.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m])); }
 
-    function escapeHtml(text) {
-      return text.replace(/[&<>"']/g, m => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
-      }[m]));
-    }
-
-    // -------------------------------------------------------------------------
-    // 7. РЕЗЕРВНАЯ КОПИЯ (JSON ЭКСПОРТ / ИМПОРТ)
-    // -------------------------------------------------------------------------
     function exportData() {
       const blob = new Blob([JSON.stringify(places, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
-      a.download = `ekb_map_${new Date().toISOString().slice(0,10)}.json`;
-      a.click();
+      a.href = url; a.download = `ekb_map_${new Date().toISOString().slice(0,10)}.json`; a.click();
       URL.revokeObjectURL(url);
     }
 
     function importData(event) {
       const file = event.target.files[0];
       if (!file) return;
-
       const reader = new FileReader();
       reader.onload = function(e) {
         try {
           const imported = JSON.parse(e.target.result);
           if (Array.isArray(imported)) {
             Object.values(markersMap).forEach(m => map.removeLayer(m));
-            markersMap = {};
-            places = imported;
-            saveToStorage();
-            places.forEach(renderMarker);
-            alert('Данные успешно импортированы!');
+            markersMap = {}; places = imported; saveToStorage();
+            places.forEach(renderMarker); alert('Данные успешно импортированы!');
           }
-        } catch (err) {
-          alert('Ошибка чтения файла: неверный формат JSON.');
-        }
+        } catch (err) { alert('Ошибка чтения файла: неверный формат JSON.'); }
       };
       reader.readAsText(file);
     }
